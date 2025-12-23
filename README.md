@@ -185,13 +185,13 @@ make status
 ```markdown
 | Service              | URL                     | Purpose                 |
 | -------------------- | ----------------------- | ----------------------- |
-| Spark Master         | <http://localhost:8080> | Cluster management      |
-| Spark Worker 1       | <http://localhost:8081> | Task execution          |
-| Spark Worker 2       | <http://localhost:8082> | Task execution          |
-| Jupyter Lab          | <http://localhost:8888> | Development environment |
-| Feast Feature Server | <http://localhost:6565> | Feature serving         |
-| Feast Registry       | <http://localhost:6566> | Feature definitions     |
-| MinIO Console        | <http://localhost:9001> | Object storage UI       |
+| Spark Master         | http://localhost:8080   | Cluster management      |
+| Spark Worker 1       | http://localhost:8081   | Task execution          |
+| Spark Worker 2       | http://localhost:8082   | Task execution          |
+| Jupyter Lab          | http://localhost:8888   | Development environment |
+| Feast Feature Server | http://localhost:6565   | Feature serving         |
+| Feast Registry       | http://localhost:6566   | Feature definitions     |
+| MinIO Console        | http://localhost:9001   | Object storage UI       |
 | Redis                | localhost:6379          | Feature cache           |
 
 ```
