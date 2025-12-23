@@ -1,0 +1,189 @@
+version: '3.8'
+
+services:
+  spark-master:
+    image: apache/spark:3.5.1-python3
+    container_name: spark-master
+    hostname: spark-master
+    ports:
+      - "8080:8080"  # Spark UI
+      - "7077:7077"  # Spark Master
+      - "4040:4040"  # Driver UI
+    environment:
+      - SPARK_MASTER_HOST=spark-master
+      - SPARK_MASTER_PORT=7077
+      - SPARK_MASTER_WEBUI_PORT=8080
+      - SPARK_NO_DAEMONIZE=1
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=password
+    volumes:
+      - ./apps:/opt/spark-apps
+      - ./data:/opt/spark-data
+      - ./jars:/opt/jars
+      - ./spark/conf:/opt/spark/conf
+    command: >
+      bash -c "
+        echo 'Creating directories...' &&
+        mkdir -p /tmp/spark-events /opt/spark/logs &&
+        echo 'Starting Spark Master...' &&
+        /opt/spark/sbin/start-master.sh --host spark-master --port 7077 --webui-port 8080
+      "
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - stroke-network
+
+  spark-worker-1:
+    image: apache/spark:3.5.1-python3
+    container_name: spark-worker-1
+    hostname: spark-worker-1
+    ports:
+      - "8081:8081"  # Worker UI
+    environment:
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=2G
+      - SPARK_WORKER_CORES=2
+      - SPARK_NO_DAEMONIZE=1
+      - SPARK_WORKER_WEBUI_PORT=8081
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=password
+    volumes:
+      - ./apps:/opt/spark-apps
+      - ./data:/opt/spark-data
+      - ./jars:/opt/jars
+      - ./spark/conf:/opt/spark/conf
+    command: /opt/spark/sbin/start-worker.sh spark://spark-master:7077
+    depends_on:
+      spark-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - stroke-network
+
+  spark-worker-2:
+    image: apache/spark:3.5.1-python3
+    container_name: spark-worker-2
+    hostname: spark-worker-2
+    ports:
+      - "8082:8081"  # Worker UI
+    environment:
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=2G
+      - SPARK_WORKER_CORES=2
+      - SPARK_NO_DAEMONIZE=1
+      - SPARK_WORKER_WEBUI_PORT=8081
+    volumes:
+      - ./apps:/opt/spark-apps
+      - ./data:/opt/spark-data
+      - ./jars:/opt/jars
+      - ./spark/conf:/opt/spark/conf
+    command: /opt/spark/sbin/start-worker.sh spark://spark-master:7077
+    depends_on:
+      spark-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - stroke-network
+
+  feast:
+    build:
+      context: ./feast
+      dockerfile: Dockerfile
+    container_name: feast-server
+    ports:
+      - "6565:6565"  # Feature Server
+      - "6566:6566"  # Registry
+    environment:
+      - REDIS_HOST=stroke-redis
+      - REDIS_PORT=6379
+      - MINIO_ENDPOINT=http://stroke-minio:9000
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=password
+    volumes:
+      - ./feast:/app/feast
+      - ./data:/app/data
+    depends_on:
+      - redis
+      - minio
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6565/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - stroke-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: stroke-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - stroke-network
+
+  minio:
+    image: minio/minio:latest
+    container_name: stroke-minio
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Console
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=password
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - stroke-network
+
+  jupyter:
+    image: jupyter/pyspark-notebook:latest
+    container_name: stroke-jupyter
+    ports:
+      - "8888:8888"
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+      - SPARK_MASTER=spark://spark-master:7077
+    volumes:
+      - ./:/home/jovyan/work
+      - ./data:/home/jovyan/data
+      - ./jars:/home/jovyan/jars
+    depends_on:
+      - spark-master
+    networks:
+      - stroke-network
+
+volumes:
+  spark-logs:
+  spark-events:
+  redis_data:
+  minio_data:
+
+networks:
+  stroke-network:
+    driver: bridge
