@@ -165,7 +165,7 @@ stroke-predict-spark-feast/
 ##### Quick Start
 ```bash
 # Clone the repository
-git clone <your-repo-url>
+git clone https://github.com/ThatoK3/stroke-predict-spark-feast.git
 cd stroke-predict-spark-feast
 
 # Setup external JARs (MongoDB Spark connector, JMX exporter)
